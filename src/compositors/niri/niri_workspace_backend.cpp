@@ -739,11 +739,19 @@ std::optional<std::size_t> NiriWorkspaceBackend::parseLeadingNumber(const std::s
 }
 
 std::string NiriWorkspaceBackend::workspaceKey(const WorkspaceState& workspace) {
-  if (workspace.idx > 0) {
-    return std::to_string(workspace.idx);
-  }
+  // `id` is niri's permanent, never-reused workspace identifier; `idx` is only its
+  // current position within its output, which shifts whenever a workspace is
+  // created, closed, or reordered around it (and can repeat across outputs).
+  // parseWorkspace() requires both fields, so `id` is always available here;
+  // preferring `idx` (the previous behavior) let two different workspaces
+  // collide on the same key after a reorder, confusing anything keyed by it:
+  // the bar widget's active-highlight tracking and per-workspace window
+  // grouping alike. See issue #4381.
   if (workspace.id > 0) {
     return std::to_string(workspace.id);
+  }
+  if (workspace.idx > 0) {
+    return std::to_string(workspace.idx);
   }
   return {};
 }

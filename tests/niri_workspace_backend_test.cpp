@@ -105,6 +105,25 @@ int main() {
       window41 != windows.end() && window41->x == 2 && window41->y == 1, "window 41 should have updated position"
   );
 
+  // workspaceKey() must key on niri's permanent `id`, not the reorderable per-output
+  // `idx`: this event assigns id=300 the idx that workspace id=1 previously held, as
+  // niri does after an earlier workspace closes and the rest shift down. An idx-based
+  // key would report this new workspace under the stale id "1" instead of "300".
+  backend.handleEvent(
+      "WorkspacesChanged",
+      {{"workspaces",
+        {
+            {{"id", 300}, {"idx", 1}, {"output", "DP-1"}},
+            {{"id", 2}, {"idx", 2}, {"output", "DP-1"}},
+        }}}
+  );
+  const auto keys = backend.workspaceKeys("DP-1");
+  ok &= check(
+      std::ranges::find(keys, std::string("300")) != keys.end()
+          && std::ranges::find(keys, std::string("1")) == keys.end(),
+      "workspaceKeys() should key workspace id=300 by its id, not its idx"
+  );
+
   std::string request;
   int serverError = 0;
   std::jthread server([&]() {
