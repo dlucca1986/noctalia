@@ -29,10 +29,8 @@ public:
   void processPendingEvents();
   void setChangeCallback(ChangeCallback callback);
 
-  /// Emits ActiveChanged(active) on org.freedesktop.ScreenSaver, so session-lock-aware
-  /// apps (KeePassXC, etc.) that watch this signal instead of polling learn the lock
-  /// screen engaged or released. No-op if the bus name could not be acquired.
-  void setActive(bool active);
+  /// Emits ActiveChanged on each registered org.freedesktop.ScreenSaver object.
+  void emitActiveChanged(bool active);
 
 private:
   struct InhibitCookie {

@@ -64,7 +64,7 @@ ScreenSaverService::~ScreenSaverService() {
 
 void ScreenSaverService::setChangeCallback(ChangeCallback callback) { m_changeCallback = std::move(callback); }
 
-void ScreenSaverService::setActive(bool active) {
+void ScreenSaverService::emitActiveChanged(bool active) {
   if (!m_active) {
     return;
   }
