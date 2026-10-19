@@ -444,41 +444,14 @@ namespace settings {
         const Config& cfg, const std::string& pluginId, const WidgetSettingSpec& spec,
         const std::vector<WidgetSettingSpec>& allSpecs
     ) {
-      if (!spec.visibleWhen.has_value()) {
-        return true;
-      }
-      const auto currentString = [&](const std::string& key) -> std::string {
+      return visibleWhenSatisfied(spec, allSpecs, [&](std::string_view key) -> std::optional<WidgetSettingValue> {
         const auto depIt =
-            std::ranges::find_if(allSpecs, [&](const WidgetSettingSpec& s) { return s.schema.key == key; });
+            std::ranges::find(allSpecs, key, [](const WidgetSettingSpec& s) { return std::string_view(s.schema.key); });
         if (depIt == allSpecs.end()) {
-          return {};
+          return std::nullopt;
         }
-        return valueAsString(pluginSettingValue(cfg, pluginId, *depIt));
-      };
-      const auto matches = [&](const WidgetSettingVisibilityCondition& cond) {
-        if (cond.nonEmpty) {
-          const auto depIt =
-              std::ranges::find_if(allSpecs, [&](const WidgetSettingSpec& s) { return s.schema.key == cond.key; });
-          if (depIt == allSpecs.end()) {
-            return false;
-          }
-          const WidgetSettingValue value = pluginSettingValue(cfg, pluginId, *depIt);
-          if (const auto* list = std::get_if<std::vector<std::string>>(&value)) {
-            return !list->empty();
-          }
-          if (const auto* str = std::get_if<std::string>(&value)) {
-            return !str->empty();
-          }
-          return false;
-        }
-        const std::string value = currentString(cond.key);
-        return std::ranges::contains(cond.values, value);
-      };
-      // Visible when any `any` alternative matches (or none declared) AND every `all` condition matches.
-      const auto& vis = *spec.visibleWhen;
-      const bool anyOk = vis.any.empty() || std::ranges::any_of(vis.any, matches);
-      const bool allOk = std::ranges::all_of(vis.all, matches);
-      return anyOk && allOk;
+        return pluginSettingValue(cfg, pluginId, *depIt);
+      });
     }
 
     std::unique_ptr<Node> pluginSettingControl(

@@ -4,6 +4,7 @@
 #include "config/schema/widget_schema.h"
 
 #include <cstdint>
+#include <functional>
 #include <initializer_list>
 #include <optional>
 #include <string>
@@ -158,6 +159,12 @@ namespace settings {
   [[nodiscard]] std::vector<WidgetSettingSpec> widgetSettingSpecs(
       std::string_view type, const WidgetConfig* config, std::string_view shellFontFamily,
       bool populateFontCatalogs = true
+  );
+  // `valueOf` returns nullopt for an unknown key.
+  // A condition on a setting hidden by its own visible_when never matches.
+  [[nodiscard]] bool visibleWhenSatisfied(
+      const WidgetSettingSpec& spec, const std::vector<WidgetSettingSpec>& allSpecs,
+      const std::function<std::optional<WidgetSettingValue>(std::string_view key)>& valueOf
   );
   [[nodiscard]] bool widgetSettingIsVisible(
       const Config& config, std::string_view widgetName, const WidgetSettingSpec& spec,

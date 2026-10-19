@@ -173,7 +173,7 @@ The manifest only declares an entry's settings schema. Named widget instances, t
 | `min` / `max`     | for `int` / `double`                                                                                         |
 | `options`         | for `select`: array of `{ value, label_key }`; both fields are required                                      |
 | `extensions`      | optional array of extensions for `file`, such as `[".toml", ".json"]`; empty allows any file                 |
-| `visible_when`    | `{ key = "other_key", values = ["true"] }` - conditional visibility                                          |
+| `visible_when`    | `{ key = "other_key", values = ["true"] }` - conditional visibility; unmet if the target setting is hidden   |
 | `advanced`        | hide behind the "show advanced" toggle                                                                       |
 
 `file` and `folder` store strings but render as a text input with a browse button in each settings editor. Use `extensions` to filter a `file` picker; users can still enter a path directly.
