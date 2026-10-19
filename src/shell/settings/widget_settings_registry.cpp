@@ -990,6 +990,73 @@ namespace settings {
     };
   }
 
+  namespace {
+
+    std::string visibilityValueText(const WidgetSettingValue& value) {
+      if (const auto* textValue = std::get_if<std::string>(&value)) {
+        return *textValue;
+      }
+      if (const auto* integer = std::get_if<std::int64_t>(&value)) {
+        return std::to_string(*integer);
+      }
+      if (const auto* boolean = std::get_if<bool>(&value)) {
+        return std::string(*boolean ? "true" : "false");
+      }
+      return std::string{};
+    }
+
+    bool visibleWhenSatisfied(
+        const WidgetSettingSpec& spec, const std::vector<WidgetSettingSpec>& allSpecs,
+        const std::function<std::optional<WidgetSettingValue>(std::string_view key)>& valueOf,
+        std::vector<std::string_view>& visiting
+    ) {
+      if (!spec.visibleWhen.has_value()) {
+        return true;
+      }
+      // Manifests can declare a cyclic chain; treat it as visible instead of recursing forever.
+      if (std::ranges::contains(visiting, std::string_view(spec.schema.key))) {
+        return true;
+      }
+      visiting.push_back(spec.schema.key);
+      const auto matches = [&](const WidgetSettingVisibilityCondition& condition) {
+        const auto dependency = std::ranges::find(allSpecs, condition.key, [](const WidgetSettingSpec& candidate) {
+          return std::string_view(candidate.schema.key);
+        });
+        // A hidden setting keeps its stale stored value, so a condition on it must not match.
+        if (dependency != allSpecs.end() && !visibleWhenSatisfied(*dependency, allSpecs, valueOf, visiting)) {
+          return false;
+        }
+        const auto value = valueOf(condition.key);
+        if (!value.has_value()) {
+          return false;
+        }
+        if (condition.nonEmpty) {
+          if (const auto* list = std::get_if<std::vector<std::string>>(&*value)) {
+            return !list->empty();
+          }
+          if (const auto* textValue = std::get_if<std::string>(&*value)) {
+            return !textValue->empty();
+          }
+          return false;
+        }
+        return std::ranges::contains(condition.values, visibilityValueText(*value));
+      };
+      const bool visible = std::ranges::all_of(spec.visibleWhen->all, matches)
+          && (spec.visibleWhen->any.empty() || std::ranges::any_of(spec.visibleWhen->any, matches));
+      visiting.pop_back();
+      return visible;
+    }
+
+  } // namespace
+
+  bool visibleWhenSatisfied(
+      const WidgetSettingSpec& spec, const std::vector<WidgetSettingSpec>& allSpecs,
+      const std::function<std::optional<WidgetSettingValue>(std::string_view key)>& valueOf
+  ) {
+    std::vector<std::string_view> visiting;
+    return visibleWhenSatisfied(spec, allSpecs, valueOf, visiting);
+  }
+
   bool widgetSettingIsVisible(
       const Config& config, std::string_view widgetName, const WidgetSettingSpec& spec,
       const std::vector<WidgetSettingSpec>& allSpecs, const WidgetSettingCapabilities& capabilities
@@ -1028,46 +1095,11 @@ namespace settings {
       }
       return std::nullopt;
     };
-    const auto valueText = [](const WidgetSettingValue& value) {
-      if (const auto* textValue = std::get_if<std::string>(&value)) {
-        return *textValue;
-      }
-      if (const auto* integer = std::get_if<std::int64_t>(&value)) {
-        return std::to_string(*integer);
-      }
-      if (const auto* boolean = std::get_if<bool>(&value)) {
-        return std::string(*boolean ? "true" : "false");
-      }
-      return std::string{};
-    };
-
     if (spec.requiresCapability.has_value() && !capabilityAvailable(*spec.requiresCapability)) {
       return false;
     }
-    if (!spec.visibleWhen.has_value()) {
-      return true;
-    }
-    const auto matches = [&](const WidgetSettingVisibilityCondition& condition) {
-      const auto value = effectiveValue(condition.key);
-      if (!value.has_value()) {
-        return false;
-      }
-      if (condition.nonEmpty) {
-        if (const auto* list = std::get_if<std::vector<std::string>>(&*value)) {
-          return !list->empty();
-        }
-        if (const auto* textValue = std::get_if<std::string>(&*value)) {
-          return !textValue->empty();
-        }
-        return false;
-      }
-      const std::string current = valueText(*value);
-      return std::ranges::contains(condition.values, current);
-    };
-    if (!std::ranges::all_of(spec.visibleWhen->all, matches)) {
-      return false;
-    }
-    return spec.visibleWhen->any.empty() || std::ranges::any_of(spec.visibleWhen->any, matches);
+    // A capability-hidden dependency is deliberately not cascaded: effectiveValue() answers with its default.
+    return visibleWhenSatisfied(spec, allSpecs, effectiveValue);
   }
 
   std::vector<WidgetSettingSpec> widgetSettingSpecs(

@@ -321,5 +321,37 @@ int main() {
   checkDefinition("wallpaper", wallpaperWidgetDefinition);
   checkDefinition("weather", weatherWidgetDefinition);
 
+  // Issue #4421: hiding a dependency must also hide the settings that depend on it.
+  const auto chainSpec = [](std::string key, std::string defaultValue,
+                            std::optional<settings::WidgetSettingVisibility> visibleWhen) {
+    settings::WidgetSettingSpec spec;
+    spec.schema.key = std::move(key);
+    spec.schema.defaultValue = std::move(defaultValue);
+    spec.visibleWhen = std::move(visibleWhen);
+    return spec;
+  };
+  const std::vector<settings::WidgetSettingSpec> chainSpecs{
+      chainSpec("stat", "cpu", std::nullopt),
+      chainSpec("cpu_metric", "none", settings::WidgetSettingVisibility("stat", {"cpu"})),
+      chainSpec("warn_cpu_perc", "70", settings::WidgetSettingVisibility("cpu_metric", {"perc"})),
+  };
+  Config chainConfig;
+  WidgetConfig chainWidget;
+  chainWidget.settings["stat"] = std::string("cpu");
+  chainWidget.settings["cpu_metric"] = std::string("perc");
+  chainConfig.widgets.emplace("chain", std::move(chainWidget));
+  const auto chainVisible = [&](std::size_t index) {
+    return settings::widgetSettingIsVisible(
+        chainConfig, "chain", chainSpecs[index], chainSpecs, settings::WidgetSettingCapabilities{}
+    );
+  };
+  if (!chainVisible(1) || !chainVisible(2)) {
+    fail("visible_when", "a satisfied dependency chain hid its settings");
+  }
+  chainConfig.widgets.at("chain").settings["stat"] = std::string("memory");
+  if (chainVisible(1) || chainVisible(2)) {
+    fail("visible_when", "a setting stayed visible after its dependency was hidden");
+  }
+
   return g_ok ? 0 : 1;
 }

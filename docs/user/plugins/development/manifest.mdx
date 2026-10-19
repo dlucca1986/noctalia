@@ -168,7 +168,7 @@ that configuration.
 | `min` / `max` | for `int` / `double` |
 | `options` | for `select`: array of `{ value, label_key }`; both fields are required |
 | `extensions` | optional array of extensions for `file`, such as `[".toml", ".json"]`; empty allows any file |
-| `visible_when` | `{ key = "other_key", values = ["true"] }` - conditional visibility |
+| `visible_when` | `{ key = "other_key", values = ["true"] }` - conditional visibility; a condition on a setting that is itself hidden counts as unmet |
 | `advanced` | hide behind the "show advanced" toggle |
 
 `file` and `folder` store strings but render as a text input with a browse button in each settings editor. Use

@@ -73,62 +73,24 @@ namespace {
     return fallback;
   }
 
-  std::string settingValueAsString(
-      const Settings& s, const std::string& key, const std::vector<settings::WidgetSettingSpec>& allSpecs
-  ) {
-    const auto it = s.find(key);
-    if (it != s.end()) {
-      if (const auto* vb = std::get_if<bool>(&it->second)) {
-        return *vb ? "true" : "false";
-      }
-      if (const auto* vs = std::get_if<std::string>(&it->second)) {
-        return *vs;
-      }
-    }
-    for (const auto& spec : allSpecs) {
-      if (spec.schema.key == key) {
-        if (const auto* vb = std::get_if<bool>(&spec.schema.defaultValue)) {
-          return *vb ? "true" : "false";
-        }
-        if (const auto* vs = std::get_if<std::string>(&spec.schema.defaultValue)) {
-          return *vs;
-        }
-        break;
-      }
-    }
-    return {};
-  }
-
   bool isSpecVisible(
       const settings::WidgetSettingSpec& spec, const Settings& s,
       const std::vector<settings::WidgetSettingSpec>& allSpecs
   ) {
-    if (!spec.visibleWhen.has_value()) {
-      return true;
-    }
-    auto matches = [&](const std::string& key, const std::vector<std::string>& values) {
-      const auto current = settingValueAsString(s, key, allSpecs);
-      for (const auto& val : values) {
-        if (val == current) {
-          return true;
+    return settings::visibleWhenSatisfied(
+        spec, allSpecs, [&](std::string_view key) -> std::optional<WidgetSettingValue> {
+          if (const auto it = s.find(std::string(key)); it != s.end()) {
+            return it->second;
+          }
+          const auto dependency = std::ranges::find(allSpecs, key, [](const settings::WidgetSettingSpec& candidate) {
+            return std::string_view(candidate.schema.key);
+          });
+          if (dependency == allSpecs.end()) {
+            return std::nullopt;
+          }
+          return dependency->schema.defaultValue;
         }
-      }
-      return false;
-    };
-    for (const auto& cond : spec.visibleWhen->all) {
-      if (!matches(cond.key, cond.values)) {
-        return false;
-      }
-    }
-    if (spec.visibleWhen->any.empty()) {
-      return true;
-    }
-    for (const auto& cond : spec.visibleWhen->any) {
-      if (matches(cond.key, cond.values)) {
-        return true;
-      }
-    }
-    return false;
+    );
   }
 
   bool hasVisibleSpecs(const std::vector<settings::WidgetSettingSpec>& specs, const Settings& s) {
